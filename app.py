@@ -6,7 +6,7 @@ import pandas as pd
 import altair as alt
 import numpy as np
 import matplotlib.pyplot as plt
-import altair
+import plotly.graph_objects as go
 
 
 #######################
@@ -101,14 +101,120 @@ plot_data = df[["time", "Force_X"]][:1500]  # Use the first 1500 rows
 # Create the Altair
 chart = (
     alt.Chart(plot_data)
-    .mark_line()
+    .mark_line(point=True)  # Add points to make hovering easier
     .encode(
-        x="time",  # Automatically inferred as quantitative
-        y="Force_X",  # Automatically inferred as quantitative
-        tooltip=["time", "Force_X"],  # Tooltip information
+        x=alt.X("time:Q", title="Time"),  # 'Q' is for quantitative data
+        y=alt.Y("Force_X:Q", title="Force (X)"),  # 'Q' is for quantitative data
+        tooltip=[alt.Tooltip("time:Q", title="Time"), alt.Tooltip("Force_X:Q", title="Force (X)")]
     )
     .properties(title="Force X over Time", width=800, height=400)
 )
 
 # Display the chart in Streamlit
 st.altair_chart(chart, use_container_width=True)
+
+
+# Streamlit title
+st.title('Acoustic Emission vs. Time')
+
+# Create the plot using matplotlib
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(df['time'][:1500], df['AE_RMS'][:1500], label='AE-RMS', color='c')
+ax.set_title('Acoustic Emission vs. Time')
+ax.set_xlabel('Time [$ms$]')
+ax.set_ylabel('Acoustic Emission [$V$]')
+ax.grid(True)
+ax.legend()
+
+# Display the plot in Streamlit
+st.pyplot(fig)
+
+st.title('Interactive: Acoustic Emission vs. Time')
+
+# Create the interactive Plotly chart
+fig = go.Figure()
+
+# Add AE_RMS line
+fig.add_trace(go.Scatter(
+    x=df['time'][:1500],
+    y=df['AE_RMS'][:1500],
+    mode='lines',
+    name='AE-RMS',
+    line=dict(color='cyan', width=2)
+))
+
+# Customize the chart layout
+fig.update_layout(
+    title='Acoustic Emission vs. Time',
+    xaxis_title='Time [ms]',
+    yaxis_title='Acoustic Emission [V]',
+    template='plotly_white',
+    legend=dict(x=0.1, y=1.1)
+)
+
+# Display the interactive Plotly chart in Streamlit
+st.plotly_chart(fig)
+
+# Window size for moving average
+window_size = 100
+
+# Calculate the moving average for the 'Force_Z' column
+df['moving_average'] = df['Force_Z'].rolling(window=window_size).mean()
+
+# Streamlit title
+st.title('Force and Moving Average in Z Dimension vs. Time')
+
+# Matplotlib plot
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(df['time'][:1500], df['Force_Z'][:1500], label='Force Z', color='g', alpha=0.5)
+ax.plot(df['time'][:1500], df['moving_average'][:1500], label='Moving Average', color='r')
+ax.set_title('Force and Moving Average in Z Dimension vs. Time')
+ax.set_xlabel('Time [$ms$]')
+ax.set_ylabel('Force [$N$]')
+ax.grid(True)
+ax.legend()
+
+# Display the plot in Streamlit
+st.pyplot(fig)
+
+window_size = 100
+
+# Calculate the moving average for the 'Force_Z' column
+df['moving_average'] = df['Force_Z'].rolling(window=window_size).mean()
+
+# Streamlit title
+st.title('Interactive: Force and Moving Average in Z Dimension vs. Time')
+
+# Create the interactive Plotly chart
+fig = go.Figure()
+
+# Add Force_Z line
+fig.add_trace(go.Scatter(
+    x=df['time'][:1500],
+    y=df['Force_Z'][:1500],
+    mode='lines',
+    name='Force Z',
+    line=dict(color='green', width=2),
+    opacity=0.5
+))
+
+# Add Moving Average line
+fig.add_trace(go.Scatter(
+    x=df['time'][:1500],
+    y=df['moving_average'][:1500],
+    mode='lines',
+    name='Moving Average',
+    line=dict(color='red', width=2)
+))
+
+# Customize the chart layout
+fig.update_layout(
+    title='Force and Moving Average in Z Dimension vs. Time',
+    xaxis_title='Time [ms]',
+    yaxis_title='Force [N]',
+    template='plotly_white',
+    legend=dict(x=0.1, y=1.1)
+)
+
+# Display the Plotly chart in Streamlit
+st.plotly_chart(fig)
