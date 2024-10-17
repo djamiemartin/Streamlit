@@ -7,7 +7,14 @@ import altair as alt
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import os
+import seaborn as sns
+from scipy.stats import skew, kurtosis
 
+
+# Silences pandas warning that ruin the display of the notebook on github
+from warnings import simplefilter
+simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 #######################
 # Page configuration
@@ -218,3 +225,48 @@ fig.update_layout(
 
 # Display the Plotly chart in Streamlit
 st.plotly_chart(fig)
+# Function to calculate zero crossings
+def calculate_zero_crossings(signal):
+    return ((np.diff(np.sign(signal)) != 0).sum())
+
+# Function to calculate energy
+def calculate_energy(signal):
+    return np.sum(signal ** 2)
+
+# Function to calculate statistics
+def calculate_statistics(df):
+    stats = pd.DataFrame()
+    for column in df.columns:
+        col_data = df[column]
+        stats[column + "_min"] = [col_data.min()]
+        stats[column + "_max"] = [col_data.max()]
+        stats[column + "_mean"] = [col_data.mean()]
+        stats[column + "_std"] = [col_data.std()]
+        stats[column + "_skew"] = [skew(col_data)]
+        stats[column + "_kurtosis"] = [kurtosis(col_data)]
+        stats[column + "_energy"] = [calculate_energy(col_data)]
+        stats[column + "_zero_crossings"] = [calculate_zero_crossings(col_data)]
+    return stats
+
+# Streamlit app
+def main():
+    st.title("Statistics Calculator for CSV Files")
+    
+    df = pd.read_csv(c_1_001)
+    st.write("Data Preview:")
+    st.dataframe(df.head())  # Show the first few rows of the DataFrame
+        
+    # Calculate and display statistics
+    stats = calculate_statistics(df)
+    st.write("Statistics:")
+    st.dataframe(stats)  # Show the calculated statistics
+        
+    # Option to download the statistics as CSV
+    csv = stats.to_csv(index=False)
+    st.download_button(
+            label="Download Statistics as CSV",
+            data=csv,
+            file_name='statistics.csv',
+            mime='text/csv',
+        )
+    c1_corr_matrix = c1_stats.corr()
