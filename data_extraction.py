@@ -20,11 +20,9 @@ def download_file_from_bucket(blob_name, file_path, bucket_name):
         return False
 
 bucket_name = 'predict-maintenanceproject'
-download_file_from_bucket('Predictive/Predictive-csv1/c1/c1/c_1_001.csv', os.path.join(os.getcwd(), 'c_1_001.csv'), bucket_name)
+# download_file_from_bucket('Predictive/Predictive-csv1/c1/c1/c_1_001.csv', os.path.join(os.getcwd(), 'c_1_001.csv'), bucket_name)
 
 # create a function to download a folder from google cloud bucket
-from google.cloud import storage
-import os
 
 def download_folder(bucket_name, prefix, local_folder):
     # Create a storage client
@@ -39,7 +37,9 @@ def download_folder(bucket_name, prefix, local_folder):
     # Download each file in the folder
     for blob in blobs:
         # Get the relative path within the folder
+    
         relative_path = blob.name[len(prefix):]
+
         # Create local destination path
         local_path = os.path.join(local_folder, relative_path)
 
@@ -50,11 +50,9 @@ def download_folder(bucket_name, prefix, local_folder):
         blob.download_to_filename(local_path)
         print(f"Downloaded {blob.name} to {local_path}")
 
-# Usage
-#bucket_name = 'predict-maintenanceproject'
-#prefix =   'Predictive/Predictive-csv1/c1/c1/'    #'your-folder-prefix/'  # Folder in the bucket
-#local_folder =  'streamlit'                            #'/local/destination/folder'
-#download_folder(bucket_name, prefix, local_folder)
-#download_folder(bucket_name, Predictive/Predictive-csv1/c1/c1/, streamlit)
+prefix =   'Predictive/Predictive-csv1/c1/c1/'    #'your-folder-prefix/'  # Folder in the bucket
+local_folder =  'data/c1/c1'                            #'/local/destination/folder'
+download_folder(bucket_name, prefix, local_folder)
+
 
 
