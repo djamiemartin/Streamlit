@@ -21,24 +21,17 @@ def download_file_from_bucket(blob_name, file_path, bucket_name):
         return False
 
 
-# download_file_from_bucket('Predictive/Predictive-csv1/c1/c1/c_1_001.csv', os.path.join(os.getcwd(), 'c_1_001.csv'), bucket_name)
-
 # create a function to download a folder from google cloud bucket
 
 
 def download_folder(bucket_name, prefix, local_folder):
-    # Create a storage client
     client = storage.Client()
 
-    # Get the bucket
     bucket = client.get_bucket(bucket_name)
 
-    # List all objects in the folder (prefix)
     blobs = bucket.list_blobs(prefix=prefix)
 
-    # Download each file in the folder
     for blob in blobs:
-        # Get the relative path within the folder
         relative_path = blob.name[len(prefix) :]
 
         # If relative_path is empty or represents a directory, skip it
@@ -57,6 +50,6 @@ def download_folder(bucket_name, prefix, local_folder):
 
 
 bucket_name = "predict-maintenanceproject"
-prefix = "dashboard/"  #'your-folder-prefix/'  # Folder in the bucket
-local_folder = "data/dashboard/"  #'/local/destination/folder'
+prefix = "dashboard/"  # Folder in the bucket
+local_folder = "data/dashboard/"  # Folder locally
 download_folder(bucket_name, prefix, local_folder)
