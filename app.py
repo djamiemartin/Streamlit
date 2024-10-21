@@ -1,69 +1,34 @@
-# Import Libraries
 import streamlit as st
 import pandas as pd
 import altair as alt
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import os
-import seaborn as sns
-from scipy.stats import skew, kurtosis
-from warnings import simplefilter
 
-# Silences pandas warning that ruin the display of the notebook on GitHub
-simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
+# Set Streamlit page configuration
+st.set_page_config(page_title="Predictive Maintenance Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="expanded")
 
-# Function to calculate zero crossings
-def calculate_zero_crossings(signal):
-    return ((np.diff(np.sign(signal)) != 0).sum())
+# Function to load data from CSV files
+def load_csv_data(folder_path):
+    dataframes = []
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.csv'):
+            file_path = os.path.join(folder_path, filename)
+            df = pd.read_csv(file_path)
+            dataframes.append(df)
+    return dataframes
 
-# Function to calculate energy
-def calculate_energy(signal):
-    return np.sum(signal ** 2)
+# Path to your CSV files folder
+folder_path = '/Users/dan/Downloads/Streamlit'
+dataframes = load_csv_data(folder_path)
 
-# Function to calculate statistics for each column in a DataFrame
-def calculate_statistics(df):
-    stats = pd.DataFrame()
-    for column in df.columns:
-        col_data = df[column]
-        stats[column + "_min"] = [col_data.min()]
-        stats[column + "_max"] = [col_data.max()]
-        stats[column + "_mean"] = [col_data.mean()]
-        stats[column + "_std"] = [col_data.std()]
-        stats[column + "_skew"] = [skew(col_data)]
-        stats[column + "_kurtosis"] = [kurtosis(col_data)]
-        stats[column + "_energy"] = [calculate_energy(col_data)]
-        stats[column + "_zero_crossings"] = [calculate_zero_crossings(col_data)]
-    return stats
-
-# Collect statistics from CSV files
-folder_path = '/Users/dan/Downloads/archive/c1/c1/'
-stats_list = []
-for filename in os.listdir(folder_path):
-    file_path = os.path.join(folder_path, filename)
-    if os.path.isfile(file_path) and filename.endswith('.csv'):
-        df = pd.read_csv(file_path)
-        stats_list.append(calculate_statistics(df))
-
-# Concatenate all statistics into a single DataFrame
-c1_stats = pd.concat(stats_list, ignore_index=True)
-
-# Streamlit page config
-st.set_page_config(
-    page_title="Predictive Maintenance Dashboard",
-    page_icon=":bar_chart:",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-alt.themes.enable("dark")
-
-# Load Data
-df = pd.read_csv("c_1_001.csv")
-df.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"]
-n = df["Force_X"].shape[0]  # number of measurements
+# Assuming first file contains signal data
+c1_data = dataframes[0]  # Assuming the first file contains the signal data
+c1_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"]
+n = c1_data["Force_X"].shape[0]  # number of measurements
 t = 0.02 * np.arange(n)  # time in milliseconds
-df["time"] = t
+c1_data["time"] = t
 
 # Sidebar with buttons
 with st.sidebar:
@@ -82,84 +47,87 @@ with st.sidebar:
     if page:
         st.write("Displaying Deep Learning")
 
-# Plots
-##### 1: Altair Plot #####
-plot_data = df[["time", "Force_X"]][:1500]
-chart = (
-    alt.Chart(plot_data)
-    .mark_line(point=True)
-    .encode(
-        x=alt.X("time:Q", title="Time"),
-        y=alt.Y("Force_X:Q", title="Force (X)"),
-        tooltip=[alt.Tooltip("time:Q", title="Time"), alt.Tooltip("Force_X:Q", title="Force (X)")],
+# Create 2x2 grid layout
+col1, col2 = st.columns(2)
+col3, col4 = st.columns(2)
+
+# 1. Signal Visualization (Interactive with Altair)
+with col1:
+    st.title('Signal Visualization')
+    signal_selection = st.radio(
+        "Select CSV file", 
+        ("C1", "C4", "C6"), 
+        horizontal=True,
+        key="signal_radio"
     )
-    .properties(title="Force X over Time", width=800, height=400)
-)
-st.altair_chart(chart, use_container_width=True)
+    signal_file = f"/Users/dan/Downloads/Streamlit/{signal_selection}.csv"
+    signal_data = pd.read_csv(signal_file)
+    chart = alt.Chart(signal_data[['time', 'Force_X']].head(1500)).mark_line().encode(
+        x='time', y='Force_X', tooltip=['time', 'Force_X']
+    ).properties(title='Force X over Time').interactive()
+    st.altair_chart(chart, use_container_width=True)
 
-##### 2: Plotly Plot #####
-st.title('Acoustic Emission vs. Time')
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df['time'][:1500], y=df['AE_RMS'][:1500], mode='lines', name='AE-RMS', line=dict(color='cyan', width=2)))
-fig.update_layout(title='Acoustic Emission vs. Time', xaxis_title='Time [ms]', yaxis_title='Acoustic Emission [V]', template='plotly_white')
-st.plotly_chart(fig)
+# 2. Frequency Analysis (Interactive with Plotly)
+with col2:
+    st.title('Frequency Analysis')
+    frequency_selection = st.radio(
+        "Select CSV file", 
+        ("C1", "C4", "C6"), 
+        horizontal=True,
+        key="frequency_radio"
+    )
+    frequency_file = f"/Users/dan/Downloads/Streamlit/{frequency_selection}.csv"
+    frequency_data = pd.read_csv(frequency_file)
+    frequencies = np.fft.fftfreq(len(frequency_data['Force_X']), 0.02)
+    fft_values = np.fft.fft(frequency_data['Force_X'])
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=frequencies[:n // 2], y=np.abs(fft_values[:n // 2]), mode='lines', name='Frequency Domain'))
+    fig.update_layout(title='Frequency Domain', xaxis_title='Frequency [Hz]', yaxis_title='Amplitude')
+    fig.update_xaxes(range=[0, 100])  # Limiting x-axis range for better clarity
+    st.plotly_chart(fig)
 
-##### 3: Moving Average Plot #####
-window_size = 100
-df['moving_average'] = df['Force_Z'].rolling(window=window_size).mean()
+# 3. Target Variable (Wear Flute) vs Cut (Interactive with Matplotlib)
+with col3:
+    st.title('Target Variable (Wear Flute) vs. Cut')
+    
+    # Load the wear data (replace with actual path to wear data)
+    wear_data = pd.read_csv('/Users/dan/Downloads/Streamlit/c1_wear.csv')  # Adjust path accordingly
+    
+    # Inspect wear data (uncomment to see the DataFrame info)
+    st.write(wear_data.info())  # Shows data types and missing values info
+    st.write(wear_data.head(10))  # Shows first 10 rows for inspection
 
-st.title('Force and Moving Average in Z Dimension vs. Time')
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(df['time'][:1500], df['Force_Z'][:1500], label='Force Z', color='g', alpha=0.5)
-ax.plot(df['time'][:1500], df['moving_average'][:1500], label='Moving Average', color='r')
-ax.set_title('Force and Moving Average in Z Dimension vs. Time')
-ax.set_xlabel('Time [$ms$]')
-ax.set_ylabel('Force [$N$]')
-ax.grid(True)
-ax.legend()
+    # Create a plot for each flute's wear over the 'cut' variable
+    plt.plot(wear_data["cut"], wear_data["flute_1"], label="Flute 1")
+    plt.plot(wear_data["cut"], wear_data["flute_2"], label="Flute 2")
+    plt.plot(wear_data["cut"], wear_data["flute_3"], label="Flute 3")
+    plt.xlabel(r'cut')
+    plt.ylabel(r'wear $[\mu m]$')
+    plt.grid()
+    plt.legend()
 
-##### 4: Interactive Plotly Plot #####
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df['time'][:1500], y=df['Force_Z'][:1500], mode='lines', name='Force Z', line=dict(color='green', width=2), opacity=0.5))
-fig.add_trace(go.Scatter(x=df['time'][:1500], y=df['moving_average'][:1500], mode='lines', name='Moving Average', line=dict(color='red', width=2)))
-fig.update_layout(title='Force and Moving Average in Z Dimension vs. Time', xaxis_title='Time [ms]', yaxis_title='Force [N]', template='plotly_white')
-st.plotly_chart(fig)
+    # Display the plot in Streamlit
+    st.pyplot(plt)
 
-#######################
-# Statistics and Correlation
-c1_wear_data = pd.read_csv('c1_wear.csv', sep=',')
-c1_wear_data = c1_wear_data.drop(columns=['cut'])
+# 4. Correlation Matrix (Interactive with Plotly)
+with col4:
+    st.title('Correlation Matrix')
+    correlation_selection = st.radio(
+        "Select CSV file", 
+        ("C1", "C4", "C6"), 
+        horizontal=True,
+        key="correlation_radio"
+    )
+    correlation_file = f"/Users/dan/Downloads/Streamlit/{correlation_selection}.csv"
+    correlation_data = pd.read_csv(correlation_file)
+    correlation_matrix = correlation_data[['Force_X', 'Force_Y', 'Force_Z', 'Vibration_X', 'Vibration_Y', 'Vibration_Z', 'AE_RMS']].corr()
 
-c1_combined_data = pd.concat([c1_stats, c1_wear_data], axis=1)
-c1_combined_corr_matrix = c1_combined_data.corr()
-
-c1_wear_corr_matrix = c1_combined_corr_matrix[['flute_1', 'flute_2', 'flute_3']].drop(['flute_1', 'flute_2', 'flute_3'], axis=0)
-
-min_columns = [
-    'Force_X_min', 
-    'Force_Y_min', 
-    'Force_Z_min', 
-    'Vibration_X_min', 
-    'Vibration_Y_min', 
-    'Vibration_Z_min', 
-    'AE_RMS_min'
-]
-min_stats = c1_stats[min_columns]
-combined_data_min = pd.concat([min_stats.reset_index(drop=True), c1_wear_data.reset_index(drop=True)], axis=1)
-corr_matrix_min = combined_data_min.corr()
-wear_columns = ['flute_1', 'flute_2', 'flute_3']
-min_correlation_matrix = corr_matrix_min.loc[min_columns, wear_columns]
-plt.figure(figsize=(5, 4))
-plt.title('Correlations Between Wear Data and Minimum Statistics', pad=20)
-plt.xlabel('Wear Data', labelpad=20)
-plt.imshow(min_correlation_matrix, cmap='cool', aspect='auto')
-
-# Annotate with numbers
-for (i, j), val in np.ndenumerate(min_correlation_matrix):
-    plt.text(j, i, f'{val:.2f}', ha='center', va='center', color='black')
-
-plt.xticks(range(len(wear_columns)), wear_columns)
-plt.yticks(range(len(min_columns)), min_columns)
-plt.colorbar(label='')
-plt.tight_layout()
-plt.show()
+    fig = go.Figure(data=go.Heatmap(
+        z=correlation_matrix.values,
+        x=correlation_matrix.columns,
+        y=correlation_matrix.columns,
+        colorscale='Viridis',
+        colorbar=dict(title='Correlation')
+    ))
+    fig.update_layout(title='Correlation Matrix', xaxis_title='Variables', yaxis_title='Variables')
+    st.plotly_chart(fig)
