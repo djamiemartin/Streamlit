@@ -63,7 +63,7 @@ col3, col4 = st.columns(2)
 # 1. Signal Visualization (Interactive with Altair)
 with col1:
     st.title('Signal Visualization')
-    signal_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="signal_radio")
+    signal_selection = st.radio(("C1", "C4", "C6"), horizontal=True, key="signal_radio")
     signal_dropdown = st.selectbox('Select signal to plot...', ['Force_X', 'Force_Y', 'Force_Z'], key='signal_dropdown')
     
     plot_data = c1_data[['time', signal_dropdown]].head(1500)
@@ -75,7 +75,7 @@ with col1:
 # 2. Frequency Analysis (Interactive with Plotly)
 with col2:
     st.title('Frequency Analysis')
-    frequency_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="frequency_radio")
+    frequency_selection = st.radio(("C1", "C4", "C6"), horizontal=True, key="frequency_radio")
     frequency_dropdown = st.selectbox('Select frequency to be plot', ['Force_X', 'Force_Y', 'Force_Z'], key='frequency_dropdown')
     
     frequencies = np.fft.fftfreq(len(c1_data[frequency_dropdown]), 0.02)
@@ -112,7 +112,7 @@ with col3:  # Place the interactive chart in the grid
 # 4. Correlation Matrix (Interactive with Plotly)
 with col4:
     st.title('Correlation Matrix')
-    correlation_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="correlation_radio")
+    correlation_selection = st.radio(("C1", "C4", "C6"), horizontal=True, key="correlation_radio")
     correlation_dropdown = st.selectbox('Select features to display correlation', ['Force_X', 'Force_Y', 'Force_Z', 'Vibration_X', 'Vibration_Y', 'Vibration_Z'], key='correlation_dropdown')
     
     correlation_matrix = c1_data[[correlation_dropdown]].corr()
