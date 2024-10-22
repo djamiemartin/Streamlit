@@ -1,59 +1,56 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
-import numpy as np
-import plotly.graph_objects as go
 import os
-import matplotlib.pyplot as plt
+import numpy as np
+from scipy import fft
+import plotly.graph_objects as go
 
 # Set Streamlit page configuration
 st.set_page_config(page_title="Predictive Maintenance Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="expanded")
+
+# Debugging helper
+def debug_message(message):
+    st.write(f"DEBUG: {message}")
 
 # Function to load data from CSV files
 def load_csv_data(folder_path):
     dataframes = []
     for filename in os.listdir(folder_path):
-        if filename.endswith('.csv'):
+        if filename.lower().endswith('.csv'):
             file_path = os.path.join(folder_path, filename)
-            df = pd.read_csv(file_path)
-            dataframes.append(df)
+            try:
+                df = pd.read_csv(file_path)
+                dataframes.append(df)
+                debug_message(f"Loaded file: {file_path}")
+            except Exception as e:
+                debug_message(f"Error loading {file_path}: {e}")
     return dataframes
 
 # Path to your CSV files folder
-folder_path = '/Users/dan/Downloads/Streamlit'
-dataframes = load_csv_data(folder_path)
-
-# Assuming first file contains signal data
-c1_data = dataframes[1]  # Assuming the first file contains the signal data
-c1_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"]
-n = c1_data["Force_X"].shape[0]  # number of measurements
-t = 0.02 * np.arange(n)  # time in milliseconds
-c1_data["time"] = t
+folder_path = '/Users/dan/Downloads/Streamlit/data/dashboard/'
 
 # Sidebar with buttons
 with st.sidebar:
     st.title("Predictive Maintenance")
     st.markdown("---")
-    page = st.button("Problem and Data")
-    if page:
+    if st.button("Problem and Data"):
         st.write("Displaying Problem and Data")
-    page = st.button("Exploratory Data Analysis")
-    if page:
+    if st.button("Exploratory Data Analysis"):
         st.write("Displaying Exploratory Data Analysis")
-    page = st.button("Machine Learning")
-    if page:
+    if st.button("Machine Learning"):
         st.write("Displaying Machine Learning")
-    page = st.button("Deep Learning")
-    if page:
+    if st.button("Deep Learning"):
         st.write("Displaying Deep Learning")
 
-# Function to load wear data (c1_wear.csv)
-def load_wear_data():
+# Function to load wear data based on selected chart
+def load_wear_data(selected_chart):
+    wear_file_path = os.path.join(folder_path, selected_chart.lower(), f"{selected_chart.lower()}_wear.csv")
     try:
-        wear_data = pd.read_csv('/Users/dan/Downloads/Streamlit/c1_wear.csv')
+        wear_data = pd.read_csv(wear_file_path)
+        debug_message(f"Loaded wear data from: {wear_file_path}")
         return wear_data
     except Exception as e:
-        st.error(f"Error loading wear data: {e}")
+        st.error(f"Error loading wear data: {e} (Tried path: {wear_file_path})")
         return None
 
 # Create 2x2 grid layout
@@ -63,36 +60,82 @@ col3, col4 = st.columns(2)
 # 1. Signal Visualization (Interactive with Altair)
 with col1:
     st.title('Signal Visualization')
-    signal_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="signal_radio")
-    signal_dropdown = st.selectbox('Select signal to plot...', ['Force_X', 'Force_Y', 'Force_Z'], key='signal_dropdown')
-    
-    plot_data = c1_data[['time', signal_dropdown]].head(1500)
-    chart = alt.Chart(plot_data).mark_line().encode(
-        x='time', y=signal_dropdown, tooltip=['time', signal_dropdown]
-    ).properties(title='Force X over Time').interactive()
-    st.altair_chart(chart, use_container_width=True)
+    selected_chart = st.radio("Select Chart", ("C1", "C4", "C6"), key='signal_chart_selection')
+    folder_path_signals = f'{folder_path}/{selected_chart.lower()}/{selected_chart.lower()}/'
+
+    # List all relevant CSV files in the directory, excluding frequency files
+    csv_files = [f for f in os.listdir(folder_path_signals) if f.endswith('.csv') and '_freq' not in f]
+
+    # File selection
+    selected_file = st.selectbox("Select a CSV file", csv_files, key='signal_file_selection')
+
+    # Load CSV data for the first chart
+    def load_first_chart_data(file_name):
+        file_path = os.path.join(folder_path_signals, file_name)
+        data = pd.read_csv(file_path)
+        return data
+
+    # Load the selected chart data
+    first_chart_data = load_first_chart_data(selected_file)
+
+    # Assign the correct column names
+    first_chart_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS", "time"]
+
+    # Dropdown for selecting the signal to be plotted
+    signal_to_plot = st.selectbox("Choose signal to plot", ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"], key='signal_selection')
+
+    # Plot the first chart
+    st.write(f"**Data from: {selected_file}**")
+    st.line_chart(first_chart_data[['time', signal_to_plot]].set_index('time'))
 
 # 2. Frequency Analysis (Interactive with Plotly)
 with col2:
     st.title('Frequency Analysis')
-    frequency_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="frequency_radio")
-    frequency_dropdown = st.selectbox('Select frequency to be plot', ['Force_X', 'Force_Y', 'Force_Z'], key='frequency_dropdown')
-    
-    frequencies = np.fft.fftfreq(len(c1_data[frequency_dropdown]), 0.02)
-    fft_values = np.fft.fft(c1_data[frequency_dropdown])
+    selected_chart = st.radio("Select Chart", ("C1", "C4", "C6"), key='frequency_chart_selection')
+    folder_path_frequencies = f'{folder_path}/{selected_chart.lower()}/{selected_chart.lower()}/'
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=frequencies[:n // 2], y=np.abs(fft_values[:n // 2]), mode='lines', name='Frequency Domain'))
-    fig.update_layout(title='Frequency Domain', xaxis_title='Frequency [Hz]', yaxis_title='Amplitude')
-    fig.update_xaxes(range=[0, 100])  # Limiting x-axis range for better clarity
-    st.plotly_chart(fig)
+    # List all relevant CSV files in the directory, excluding frequency files
+    csv_files = [f for f in os.listdir(folder_path_frequencies) if f.endswith('.csv') and '_freq' not in f]
+
+    # File selection for the time-domain data
+    selected_file = st.selectbox("Select a CSV file", csv_files, key='frequency_file_selection')
+
+    # Load CSV data for the selected chart
+    def load_data(file_name):
+        file_path = os.path.join(folder_path_frequencies, file_name)
+        data = pd.read_csv(file_path)
+        return data
+
+    # Load the selected chart data
+    chart_data = load_data(selected_file)
+
+    # Assign the correct column names (adjusting for case sensitivity)
+    chart_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS", "time"]
+
+    # Dropdown for selecting the signal to be plotted
+    signal_to_plot = st.selectbox("Choose signal to plot", ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"], key='frequency_signal_selection')
+
+    # Frequency domain analysis
+    def plot_frequency_analysis(data):
+        y = np.asarray(data[signal_to_plot])
+        n = len(y)
+        yf = fft.fft(y)
+        xf = fft.fftfreq(n, d=1/50000)
+
+        # Create interactive plot
+        freq_data = 2.0/n * np.abs(yf[0:n//2])
+        freq_df = pd.DataFrame({'Frequency (Hz)': xf[0:n//2], 'Magnitude': freq_data})
+        st.line_chart(freq_df.set_index('Frequency (Hz)'))
+
+    # Plot the frequency chart
+    st.write(f"**Data from: {selected_file}**")
+    plot_frequency_analysis(chart_data)
 
 # 3. Target Variable (Wear Flute) vs Cut (Interactive with Plotly)
-with col3:  # Place the interactive chart in the grid
+with col3:
     st.title('Target Variable (Wear Flute) vs Cut')
-    wear_data = load_wear_data()
+    wear_data = load_wear_data(selected_chart)
     if wear_data is not None:
-        # Create an interactive plot with Plotly
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=wear_data["cut"], y=wear_data["flute_1"], mode='lines+markers', name="Flute 1"))
         fig.add_trace(go.Scatter(x=wear_data["cut"], y=wear_data["flute_2"], mode='lines+markers', name="Flute 2"))
@@ -105,24 +148,65 @@ with col3:  # Place the interactive chart in the grid
             legend_title='Flutes',
             template='plotly_white'
         )
-
-        # Display the interactive plot in Streamlit, fit to the column
         st.plotly_chart(fig, use_container_width=True)
 
 # 4. Correlation Matrix (Interactive with Plotly)
 with col4:
     st.title('Correlation Matrix')
-    correlation_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="correlation_radio")
-    correlation_dropdown = st.selectbox('Select features to display correlation', ['Force_X', 'Force_Y', 'Force_Z', 'Vibration_X', 'Vibration_Y', 'Vibration_Z'], key='correlation_dropdown')
     
-    correlation_matrix = c1_data[[correlation_dropdown]].corr()
+    # Load wear data for correlation matrix
+    def load_wear_data(selected_chart):
+        wear_file_path = f'/Users/dan/Downloads/Streamlit/data/dashboard/{selected_chart.lower()}/{selected_chart.lower()}_wear.csv'
+        return pd.read_csv(wear_file_path)
 
-    fig = go.Figure(data=go.Heatmap(
-        z=correlation_matrix.values,
-        x=correlation_matrix.columns,
-        y=correlation_matrix.columns,
-        colorscale='Viridis',
-        colorbar=dict(title='Correlation')
-    ))
-    fig.update_layout(title='Correlation Matrix', xaxis_title='Variables', yaxis_title='Variables')
-    st.plotly_chart(fig)
+    # Load main data for correlation matrix
+    def load_main_data(selected_chart):
+        folder_path = f'/Users/dan/Downloads/Streamlit/data/dashboard/{selected_chart.lower()}/{selected_chart.lower()}/'
+        csv_files = [f for f in os.listdir(folder_path) if f.endswith('.csv') and '_freq' not in f]
+        
+        if not csv_files:
+            st.error("No valid data files found.")
+            return None
+        
+        selected_file = csv_files[0]  # Use the first file found
+        file_path = os.path.join(folder_path, selected_file)
+        return pd.read_csv(file_path)
+
+    correlation_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="correlation_radio")
+    wear_data = load_wear_data(correlation_selection)
+    main_data = load_main_data(correlation_selection)
+
+    # Select features to display correlation
+    correlation_dropdown = st.selectbox('Select features to display correlation', 
+                                         ['force_x', 'force_y', 'force_z', 'vibration_x', 'vibration_y', 'vibration_z'], 
+                                         key='correlation_dropdown')
+
+    # Ensure the selected feature is in the main data
+    if correlation_dropdown in main_data.columns:
+        # Create a DataFrame that includes only the selected feature and the wear data
+        combined_data = pd.concat([main_data[[correlation_dropdown]], wear_data[['flute_1', 'flute_2', 'flute_3']]], axis=1)
+        
+        # Create the correlation matrix
+        correlation_matrix = combined_data.corr()
+
+        # Create the heatmap with wear variables on the y-axis and the selected feature on the x-axis
+        fig = go.Figure(data=go.Heatmap(
+            z=correlation_matrix.values,
+            x=correlation_matrix.columns,
+            y=correlation_matrix.columns,
+            colorscale='Viridis',
+            colorbar=dict(title='Correlation Coefficient')
+        ))
+
+        # Update layout
+        fig.update_layout(
+            title='Correlation Matrix',
+            xaxis_title='Features',
+            yaxis_title='Features'
+        )
+
+        st.plotly_chart(fig)
+
+# Run the application
+if __name__ == "__main__":
+    st.write("Running the Streamlit application...")
