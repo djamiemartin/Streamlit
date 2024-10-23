@@ -162,8 +162,8 @@ cython_debug/
 #.idea/
 
 # Ignore dataset
+data_phm2010/
 data/
-correlation_files/
 *.csv
 
 # Ignore keys

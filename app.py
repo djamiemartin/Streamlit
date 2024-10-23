@@ -1,213 +1,151 @@
-#######################
-# import libraries
-
 import streamlit as st
 import pandas as pd
-import altair as alt
+import os
 import numpy as np
-import matplotlib.pyplot as plt
+from scipy import fft
 import plotly.graph_objects as go
 
+# Set Streamlit page configuration
+st.set_page_config(page_title="Predictive Maintenance Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state="expanded")
 
-#######################
-# Page configuration
+# Function to load wear data based on selected chart
+def load_wear_data(selected_chart):
+    wear_file_path = os.path.join(folder_path, selected_chart.lower(), f"{selected_chart.lower()}_wear.csv")
+    try:
+        wear_data = pd.read_csv(wear_file_path)
+        return wear_data
+    except Exception as e:
+        st.error(f"Error loading wear data: {e} (Tried path: {wear_file_path})")
+        return None
 
-st.set_page_config(
-    page_title="Predictive Maintenance Dashboard",  # this will show in the browser tab
-    page_icon=":bar_chart:",  # the icon showing before the title
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-alt.themes.enable("dark")
-
-#######################
-# CSS styling
-
-st.markdown(
-    """
-<style>
-
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-#######################
-# Load data
-
-df = pd.read_csv("data/raw/c1/c1/c_1_001.csv")
-
-df.columns = [
-    "Force_X",
-    "Force_Y",
-    "Force_Z",
-    "Vibration_X",
-    "Vibration_Y",
-    "Vibration_Z",
-    "AE_RMS",
-]
-
-n = df["Force_X"].shape[0]  # number of measurements
-t = 0.02 * np.arange(n)  # time in miliseconds
-
-df["time"] = t
-
-
-#######################
-# Plots
-
-def display_starter_chart():
-
-    time_data = df["time"][:1500]
-    force_x_data = df["Force_X"][:1500]
-
-    # Create a DataFrame for easier plotting
-    st.title('Interactive: Force X vs Time')
-
-    plot_data = pd.DataFrame({"Time (ms)": time_data, "Force (N)": force_x_data})
-
-    st.line_chart(plot_data.set_index("Time (ms)"))
-
-    # You can add additional information if needed
-    st.write("Force X plotted against Time.")
-
-
-##### 1: Plotting natively with streamlit #####
-
-def display_chart_1():
-    st.title('Interactive: Force Y vs Time')
+# Load main data for correlation matrix
+def load_main_data(selected_chart):
+    folder_path = f'/Users/dan/Downloads/Streamlit/data/dashboard/{selected_chart.lower()}/{selected_chart.lower()}/'
+    csv_files = [f for f in os.listdir(folder_path) if f.endswith('.csv') and '_freq' not in f]
     
-    time_data = df["time"][:1500]
-    force_y_data = df["Force_Y"][:1500]
+    if not csv_files:
+        st.error("No valid data files found.")
+        return None
+    
+    selected_file = csv_files[0]  # Use the first file found
+    file_path = os.path.join(folder_path, selected_file)
+    return pd.read_csv(file_path)
 
-    # Create a DataFrame for easier plotting
-    plot_data = pd.DataFrame({"Time (ms)": time_data, "Force (N)": force_y_data})
+# Path to your CSV files folder
+folder_path = '/Users/dan/Downloads/Streamlit/data/dashboard/'
 
-    st.line_chart(plot_data.set_index("Time (ms)"))
+# Sidebar with buttons
+with st.sidebar:
+    st.title("Predictive Maintenance")
+    st.markdown("---")
+    if st.button("Problem and Data"):
+        st.write("Displaying Problem and Data")
+    if st.button("Exploratory Data Analysis"):
+        st.write("Displaying Exploratory Data Analysis")
+    if st.button("Machine Learning"):
+        st.write("Displaying Machine Learning")
+    if st.button("Deep Learning"):
+        st.write("Displaying Deep Learning")
 
-    # You can add additional information if needed
-    st.write("Force Y plotted against Time.")
+# Create 2x2 grid layout
+col1, col2 = st.columns(2)
+col3, col4 = st.columns(2)
 
+# 1. Signal Visualization (Interactive with Altair)
+with col1:
+    st.title('Signal Visualization')
+    selected_chart = st.radio("Select Chart", ("C1", "C4", "C6"), key='signal_chart_selection')
+    folder_path_signals = f'{folder_path}/{selected_chart.lower()}/{selected_chart.lower()}/'
 
-##### 2: Plotting with altair and then display with streamlit #####
-def display_chart_2():
-    st.title('Interactive: Force Z vs Time')
-    # Select the data you want to plot
-    plot_data = df[["time", "Force_Z"]][:1500]  # Use the first 1500 rows
+    csv_files = [f for f in os.listdir(folder_path_signals) if f.endswith('.csv') and '_freq' not in f]
+    selected_file = st.selectbox("Select a CSV file", csv_files, key='signal_file_selection')
 
-    # Create the Altair
-    chart = (
-        alt.Chart(plot_data)
-        .mark_line(point=True)  # Add points to make hovering easier
-        .encode(
-            x=alt.X("time:Q", title="Time"),  # 'Q' is for quantitative data
-            y=alt.Y("Force_Z:Q", title="Force (Z)"),  # 'Q' is for quantitative data
-            tooltip=[alt.Tooltip("time:Q", title="Time"), alt.Tooltip("Force_Z:Q", title="Force (Z)")]
+    def load_first_chart_data(file_name):
+        file_path = os.path.join(folder_path_signals, file_name)
+        data = pd.read_csv(file_path)
+        return data
+
+    first_chart_data = load_first_chart_data(selected_file)
+    first_chart_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS", "time"]
+
+    signal_to_plot = st.selectbox("Choose signal to plot", ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"], key='signal_selection')
+    st.write(f"**Data from: {selected_file}**")
+    st.line_chart(first_chart_data[['time', signal_to_plot]].set_index('time'))
+
+# 2. Frequency Analysis (Interactive with Plotly)
+with col2:
+    st.title('Frequency Analysis')
+    selected_chart = st.radio("Select Chart", ("C1", "C4", "C6"), key='frequency_chart_selection')
+    folder_path_frequencies = f'{folder_path}/{selected_chart.lower()}/{selected_chart.lower()}/'
+
+    csv_files = [f for f in os.listdir(folder_path_frequencies) if f.endswith('.csv') and '_freq' not in f]
+    selected_file = st.selectbox("Select a CSV file", csv_files, key='frequency_file_selection')
+
+    def load_data(file_name):
+        file_path = os.path.join(folder_path_frequencies, file_name)
+        data = pd.read_csv(file_path)
+        return data
+
+    chart_data = load_data(selected_file)
+    chart_data.columns = ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS", "time"]
+
+    signal_to_plot = st.selectbox("Choose signal to plot", ["Force_X", "Force_Y", "Force_Z", "Vibration_X", "Vibration_Y", "Vibration_Z", "AE_RMS"], key='frequency_signal_selection')
+
+    def plot_frequency_analysis(data):
+        y = np.asarray(data[signal_to_plot])
+        n = len(y)
+        yf = fft.fft(y)
+        xf = fft.fftfreq(n, d=1/50000)
+        freq_data = 2.0/n * np.abs(yf[0:n//2])
+        freq_df = pd.DataFrame({'Frequency (Hz)': xf[0:n//2], 'Magnitude': freq_data})
+        st.line_chart(freq_df.set_index('Frequency (Hz)'))
+
+    st.write(f"**Data from: {selected_file}**")
+    plot_frequency_analysis(chart_data)
+
+# 3. Target Variable (Wear Flute) vs Cut (Interactive with Plotly)
+with col3:
+    st.title('Target Variable (Wear Flute) vs Cut')
+    wear_data = load_wear_data(selected_chart)
+    if wear_data is not None:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=wear_data["cut"], y=wear_data["flute_1"], mode='lines+markers', name="Flute 1"))
+        fig.add_trace(go.Scatter(x=wear_data["cut"], y=wear_data["flute_2"], mode='lines+markers', name="Flute 2"))
+        fig.add_trace(go.Scatter(x=wear_data["cut"], y=wear_data["flute_3"], mode='lines+markers', name="Flute 3"))
+
+        fig.update_layout(
+            title='Target Variable (Wear Flute) vs Cut',
+            xaxis_title='Cut',
+            yaxis_title='Wear [μm]',
+            legend_title='Flutes',
+            template='plotly_white'
         )
-        .properties(title="Force Z over Time", width=800, height=400)
-    )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Display the chart in Streamlit
-    st.altair_chart(chart, use_container_width=True)
+# 4. Correlation Matrix (Interactive with Plotly)
+with col4:
+    st.title('Correlation Matrix')
+    correlation_selection = st.radio("Select CSV file", ("C1", "C4", "C6"), horizontal=True, key="correlation_radio")
+    wear_data = load_wear_data(correlation_selection)
+    main_data = load_main_data(correlation_selection)
 
+    correlation_dropdown = st.selectbox('Select features to display correlation', 
+                                         ['force_x', 'force_y', 'force_z', 'vibration_x', 'vibration_y', 'vibration_z'], 
+                                         key='correlation_dropdown')
 
-##### 4: Interavtive AE chart ####
-def display_chart_3():
-    st.title('Interactive: Acoustic Emission vs. Time')
+    if correlation_dropdown in main_data.columns:
+        combined_data = pd.concat([main_data[[correlation_dropdown]], wear_data[['flute_1', 'flute_2', 'flute_3']]], axis=1)
+        correlation_matrix = combined_data.corr()
 
-    # Create the interactive Plotly chart
-    fig = go.Figure()
+        fig = go.Figure(data=go.Heatmap(
+            z=correlation_matrix.values,
+            x=correlation_matrix.columns,
+            y=correlation_matrix.columns,
+            colorscale='Viridis',
+            colorbar=dict(title='Correlation')
+        ))
 
-    # Add AE_RMS line
-    fig.add_trace(go.Scatter(
-        x=df['time'][:1500],
-        y=df['AE_RMS'][:1500],
-        mode='lines',
-        name='AE-RMS',
-        line=dict(color='cyan', width=2)
-    ))
-
-    # Customize the chart layout
-    fig.update_layout(
-        title='Acoustic Emission vs. Time',
-        xaxis_title='Time [ms]',
-        yaxis_title='Acoustic Emission [V]',
-        template='plotly_white',
-        legend=dict(x=0.1, y=1.1)
-    )
-
-    # Display the interactive Plotly chart in Streamlit
-    st.plotly_chart(fig)
-
-##### 4: Interavtive Rolling chart ####
-def display_chart_4():
-    # Window size for moving average
-    window_size = 100
-
-    # Calculate the moving average for the 'Force_Z' column
-    df['moving_average'] = df['Force_Z'].rolling(window=window_size).mean()
-
-    # Streamlit title
-    st.title('Interactive: Force and Moving Average in Z Dimension vs. Time')
-
-    # Create the interactive Plotly chart
-    fig = go.Figure()
-
-    # Add Force_Z line
-    fig.add_trace(go.Scatter(
-        x=df['time'][:1500],
-        y=df['Force_Z'][:1500],
-        mode='lines',
-        name='Force Z',
-        line=dict(color='green', width=2),
-        opacity=0.5
-    ))
-
-    # Add Moving Average line
-    fig.add_trace(go.Scatter(
-        x=df['time'][:1500],
-        y=df['moving_average'][:1500],
-        mode='lines',
-        name='Moving Average',
-        line=dict(color='red', width=2)
-    ))
-
-    # Customize the chart layout
-    fig.update_layout(
-        title='Force and Moving Average in Z Dimension vs. Time',
-        xaxis_title='Time [ms]',
-        yaxis_title='Force [N]',
-        template='plotly_white',
-        legend=dict(x=0.1, y=1.1)
-    )
-
-    # Display the Plotly chart in Streamlit
-    st.plotly_chart(fig)
-
-
-#######################
-# Sidebar
-
-st.sidebar.title("Navigation")
-option = st.sidebar.radio(
-    "Go to",
-    ('Starter Chart', 'Chart 1', 'Chart 2', 'Chart 3', 'Chart 4')
-)
-
-# Display content based on selection
-if option == 'Starter Chart':
-    st.title("Starter Chart")
-    display_starter_chart()
-elif option == 'Chart 1':
-    st.title("Force Y vs Time")
-    display_chart_1()
-elif option == 'Chart 2':
-    st.title("Force Z vs Time")
-    display_chart_2()
-elif option == 'Chart 3':
-    st.title("Acoustic Emission vs. Time")
-    display_chart_3()
-elif option == 'Chart 4':
-    st.title("Force and Moving Average in Z Dimension vs. Time")
-    display_chart_4()
+        fig.update_layout(title='Correlation Matrix', xaxis_title='Variables', yaxis_title='Variables')
+        st.plotly_chart(fig)
+    else:
+        st.write(f"Feature {correlation_dropdown} not found in main data.")
